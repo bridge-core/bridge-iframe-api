@@ -39,14 +39,14 @@ class Channel {
     });
   }
   startListening() {
-    console.log("STARTING TO LISTEN TO EVENTS");
     this.port.addEventListener("message", async (event) => {
-      const { type, origin, uuid, error, payload } = event.data;
-      console.log(event);
+      const { type, noResponse, origin, uuid, error, payload } = event.data;
       if (type === "response") {
         const onResponse = this.awaitingResponse.get(uuid);
-        if (!onResponse)
-          throw new Error(`No response handler for ${uuid}`);
+        if (!onResponse) {
+          console.error(`No response handler for ${uuid}`);
+          return;
+        }
         onResponse(payload, error);
         this.awaitingResponse.delete(uuid);
         return;
@@ -54,12 +54,13 @@ class Channel {
       const listener = this.listeners.get(type);
       if (!listener)
         return;
-      this.respond(uuid, await listener(payload, origin));
+      const respPayload = await listener(payload, origin);
+      if (!noResponse)
+        this.respond(uuid, respPayload);
     });
     this.port.start();
   }
   respond(uuid, payload) {
-    console.log(`Responded to ${uuid} with ${payload}`);
     this.port.postMessage({
       type: "response",
       uuid,
@@ -84,18 +85,20 @@ class Channel {
       }, responseTimeout) : null;
       const triggerId = crypto.randomUUID();
       this.awaitingResponse.set(triggerId, listener);
-      this.simpleTrigger(event, data, triggerId);
+      this._simpleTrigger(event, data, triggerId);
     });
   }
-  simpleTrigger(event, data, triggerId = crypto.randomUUID()) {
-    console.log(`Triggered event ${event} with data ${data} and triggerId ${triggerId}`);
+  _simpleTrigger(event, data, triggerId = crypto.randomUUID(), noResponse) {
     this.port.postMessage({
       type: event,
+      noResponse,
       uuid: triggerId,
       origin: window.origin,
       payload: data
     });
-    return triggerId;
+  }
+  simpleTrigger(event, data) {
+    this._simpleTrigger(event, data, void 0, true);
   }
   on(eventName, callback) {
     if (eventName === "response") {

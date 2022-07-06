@@ -1,6 +1,6 @@
 interface ITriggerEventData {
 	type: string
-	channelId?: string
+	noResponse?: boolean
 	error?: string
 	uuid: string
 	origin: string
@@ -76,17 +76,17 @@ export class Channel {
 	}
 
 	protected startListening() {
-		console.log('STARTING TO LISTEN TO EVENTS')
 		this.port.addEventListener('message', async (event) => {
-			const { type, origin, uuid, error, payload } = <ITriggerEventData>(
-				event.data
-			)
-			console.log(event)
+			const { type, noResponse, origin, uuid, error, payload } = <
+				ITriggerEventData
+			>event.data
 
 			if (type === 'response') {
 				const onResponse = this.awaitingResponse.get(uuid)
-				if (!onResponse)
-					throw new Error(`No response handler for ${uuid}`)
+				if (!onResponse) {
+					console.error(`No response handler for ${uuid}`)
+					return
+				}
 
 				onResponse(payload, error)
 				this.awaitingResponse.delete(uuid)
@@ -96,12 +96,12 @@ export class Channel {
 			const listener = this.listeners.get(type)
 			if (!listener) return
 
-			this.respond(uuid, await listener(payload, origin))
+			const respPayload = await listener(payload, origin)
+			if (!noResponse) this.respond(uuid, respPayload)
 		})
 		this.port.start()
 	}
 	protected respond(uuid: string, payload: any) {
-		console.log(`Responded to ${uuid} with ${payload}`)
 		this.port.postMessage(<ITriggerEventData>{
 			type: 'response',
 			uuid,
@@ -136,26 +136,27 @@ export class Channel {
 			const triggerId = crypto.randomUUID()
 			this.awaitingResponse.set(triggerId, listener)
 
-			this.simpleTrigger<TriggerData>(event, data, triggerId)
+			this._simpleTrigger<TriggerData>(event, data, triggerId)
 		})
 	}
 
-	simpleTrigger<T = any>(
+	protected _simpleTrigger<T = any>(
 		event: string,
 		data: T,
-		triggerId = crypto.randomUUID()
+		triggerId = crypto.randomUUID(),
+		noResponse?: true
 	) {
-		console.log(
-			`Triggered event ${event} with data ${data} and triggerId ${triggerId}`
-		)
 		this.port.postMessage(<ITriggerEventData>{
 			type: event,
+			noResponse,
 			uuid: triggerId,
 			origin: window.origin,
 			payload: data,
 		})
+	}
 
-		return triggerId
+	simpleTrigger<T = any>(event: string, data: T) {
+		this._simpleTrigger(event, data, undefined, true)
 	}
 
 	on<Data = any, Response = void>(

@@ -10,7 +10,8 @@ export declare class Channel {
     protected startListening(): void;
     protected respond(uuid: string, payload: any): void;
     trigger<ResponseData = any, TriggerData = any>(event: string, data: TriggerData, responseTimeout?: number): Promise<ResponseData>;
-    simpleTrigger<T = any>(event: string, data: T, triggerId?: string): string;
+    protected _simpleTrigger<T = any>(event: string, data: T, triggerId?: string, noResponse?: true): void;
+    simpleTrigger<T = any>(event: string, data: T): void;
     on<Data = any, Response = void>(eventName: string, callback: (data: Data, origin: string) => Response): {
         dispose: () => void;
     };
