@@ -1,0 +1,24 @@
+{
+	"name": "bridge-iframe-api",
+	"version": "0.1.0",
+	"description": "A thin wrapper to make communication between bridge. and iframes easier",
+	"main": "./dist/bridge-iframe-api.umd.js",
+	"module": "./dist/bridge-iframe-api.es.js",
+	"types": "./dist/main.d.ts",
+	"exports": {
+		".": {
+			"import": "./dist/bridge-iframe-api.es.js",
+			"require": "./dist/bridge-iframe-api.umd.js"
+		}
+	},
+	"scripts": {
+		"build:types": "tsc --project tsconfig.json",
+		"build": "vite build && npm run build:types"
+	},
+	"author": "solvedDev",
+	"license": "MIT",
+	"devDependencies": {
+		"typescript": "^4.7.4",
+		"vite": "^2.9.13"
+	}
+}

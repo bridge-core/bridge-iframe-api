@@ -1,0 +1,26 @@
+{
+	"compilerOptions": {
+		/* Basic Options */
+		"target": "ES2021",
+		"module": "ES2020",
+		"moduleResolution": "node",
+		"outDir": "./dist/",
+		"rootDir": "./src/",
+		"composite": false,
+		"removeComments": true,
+		"sourceMap": false,
+		"declaration": true,
+		"emitDeclarationOnly": true,
+
+		/* Strict Type-Checking Options */
+		"strict": true,
+		"strictFunctionTypes": true,
+		"noImplicitAny": true,
+
+		/* Additional Checks */
+		"esModuleInterop": true,
+		"resolveJsonModule": true,
+		"types": ["vite/client"]
+	},
+	"include": ["./src/**/*.ts"]
+}
