@@ -39,14 +39,15 @@ class Channel {
     });
   }
   startListening() {
+    console.log("STARTING TO LISTEN TO EVENTS");
     this.port.addEventListener("message", async (event) => {
-      const { type, origin, uuid, payload } = event.data;
+      const { type, origin, uuid, error, payload } = event.data;
       console.log(event);
       if (type === "response") {
         const onResponse = this.awaitingResponse.get(uuid);
         if (!onResponse)
           throw new Error(`No response handler for ${uuid}`);
-        onResponse(event);
+        onResponse(payload, error);
         this.awaitingResponse.delete(uuid);
         return;
       }
@@ -56,10 +57,18 @@ class Channel {
       this.respond(uuid, await listener(payload, origin));
     });
   }
+  respond(uuid, payload) {
+    console.log(`Responded to ${uuid} with ${payload}`);
+    this.port.postMessage({
+      type: "response",
+      uuid,
+      origin: window.origin,
+      payload
+    });
+  }
   trigger(event, data, responseTimeout) {
     return new Promise((resolve, reject) => {
-      const listener = (event2) => {
-        const { error, payload } = event2.data;
+      const listener = (payload, error) => {
         if (error) {
           reject(error);
           return;
@@ -70,6 +79,7 @@ class Channel {
       };
       const timeout = responseTimeout ? setTimeout(() => {
         this.awaitingResponse.delete(triggerId);
+        reject(new Error("Response timed out"));
       }, responseTimeout) : null;
       const triggerId = crypto.randomUUID();
       this.awaitingResponse.set(triggerId, listener);
@@ -77,6 +87,7 @@ class Channel {
     });
   }
   simpleTrigger(event, data, triggerId = crypto.randomUUID()) {
+    console.log(`Triggered event ${event} with data ${data} and triggerId ${triggerId}`);
     this.port.postMessage({
       type: event,
       uuid: triggerId,
@@ -97,14 +108,6 @@ class Channel {
         this.listeners.delete(eventName);
       }
     };
-  }
-  respond(uuid, payload) {
-    this.port.postMessage({
-      type: "response",
-      uuid,
-      origin: window.origin,
-      payload
-    });
   }
 }
 export { Channel };

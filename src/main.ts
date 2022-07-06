@@ -16,7 +16,7 @@ export class Channel {
 	>()
 	protected awaitingResponse = new Map<
 		string,
-		(event: MessageEvent) => void
+		(payload: any, error?: string) => void
 	>()
 
 	constructor(target = window.top) {
@@ -76,8 +76,9 @@ export class Channel {
 	}
 
 	protected startListening() {
+		console.log('STARTING TO LISTEN TO EVENTS')
 		this.port.addEventListener('message', async (event) => {
-			const { type, origin, uuid, payload } = <ITriggerEventData>(
+			const { type, origin, uuid, error, payload } = <ITriggerEventData>(
 				event.data
 			)
 			console.log(event)
@@ -87,7 +88,7 @@ export class Channel {
 				if (!onResponse)
 					throw new Error(`No response handler for ${uuid}`)
 
-				onResponse(event)
+				onResponse(payload, error)
 				this.awaitingResponse.delete(uuid)
 				return
 			}
@@ -98,6 +99,15 @@ export class Channel {
 			this.respond(uuid, await listener(payload, origin))
 		})
 	}
+	protected respond(uuid: string, payload: any) {
+		console.log(`Responded to ${uuid} with ${payload}`)
+		this.port.postMessage(<ITriggerEventData>{
+			type: 'response',
+			uuid,
+			origin: window.origin,
+			payload,
+		})
+	}
 
 	trigger<ResponseData = any, TriggerData = any>(
 		event: string,
@@ -105,9 +115,7 @@ export class Channel {
 		responseTimeout?: number
 	) {
 		return new Promise<ResponseData>((resolve, reject) => {
-			const listener = (event: MessageEvent) => {
-				const { error, payload } = <ITriggerEventData>event.data
-
+			const listener = (payload: any, error?: string) => {
 				if (error) {
 					reject(error)
 					return
@@ -120,6 +128,7 @@ export class Channel {
 			const timeout = responseTimeout
 				? setTimeout(() => {
 						this.awaitingResponse.delete(triggerId)
+						reject(new Error('Response timed out'))
 				  }, responseTimeout)
 				: null
 
@@ -135,6 +144,9 @@ export class Channel {
 		data: T,
 		triggerId = crypto.randomUUID()
 	) {
+		console.log(
+			`Triggered event ${event} with data ${data} and triggerId ${triggerId}`
+		)
 		this.port.postMessage(<ITriggerEventData>{
 			type: event,
 			uuid: triggerId,
@@ -166,14 +178,5 @@ export class Channel {
 				this.listeners.delete(eventName)
 			},
 		}
-	}
-
-	protected respond(uuid: string, payload: any) {
-		this.port.postMessage(<ITriggerEventData>{
-			type: 'response',
-			uuid,
-			origin: window.origin,
-			payload,
-		})
 	}
 }
