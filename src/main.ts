@@ -64,13 +64,21 @@ export function on<T = any>(
 		throw new Error(`The response event type is reserved for internal use.`)
 	}
 
-	globalThis.addEventListener('message', (event: MessageEvent) => {
+	const listener = (event: MessageEvent) => {
 		const { type, origin, uuid, payload } = <ITriggerEventData>event.data
 
 		if (type === eventName) {
 			callback(payload, origin, createResponseFunction(uuid, receiver))
 		}
-	})
+	}
+
+	globalThis.addEventListener('message', listener)
+
+	return {
+		dispose: () => {
+			globalThis.removeEventListener('message', listener)
+		},
+	}
 }
 
 function createResponseFunction(uuid: string, target = window.top) {

@@ -31,12 +31,18 @@ function on(eventName, callback, receiver = window.top) {
   if (eventName === "response") {
     throw new Error(`The response event type is reserved for internal use.`);
   }
-  globalThis.addEventListener("message", (event) => {
+  const listener = (event) => {
     const { type, origin, uuid, payload } = event.data;
     if (type === eventName) {
       callback(payload, origin, createResponseFunction(uuid, receiver));
     }
-  });
+  };
+  globalThis.addEventListener("message", listener);
+  return {
+    dispose: () => {
+      globalThis.removeEventListener("message", listener);
+    }
+  };
 }
 function createResponseFunction(uuid, target = window.top) {
   if (!target)
