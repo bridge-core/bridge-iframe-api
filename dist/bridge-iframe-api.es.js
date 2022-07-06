@@ -17,7 +17,7 @@ class Channel {
   connect() {
     return new Promise((resolve) => {
       const listener = (event) => {
-        if (event.data !== "open-channel" || event.ports.length > 0)
+        if (event.data !== "open-channel" || event.ports.length === 0)
           return;
         this._port = event.ports[0];
         globalThis.removeEventListener("message", listener);

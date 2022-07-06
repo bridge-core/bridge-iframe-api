@@ -39,7 +39,7 @@ export class Channel {
 	connect() {
 		return new Promise<void>((resolve) => {
 			const listener = (event: MessageEvent) => {
-				if (event.data !== 'open-channel' || event.ports.length > 0)
+				if (event.data !== 'open-channel' || event.ports.length === 0)
 					return
 
 				this._port = event.ports[0]
