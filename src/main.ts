@@ -31,22 +31,35 @@ export class Channel {
 		return false
 	}
 
-	async open(responseTimeout = 3000) {
-		const channelId = await this.trigger<string, null>(
-			'connect',
-			null,
-			responseTimeout
-		)
-		this.channelId = channelId
+	open(responseTimeout = 3000) {
+		if (this.channelId) return
+
+		return new Promise<void>((resolve, reject) => {
+			const timeout = setTimeout(() => {
+				reject(new Error('Channel target did not respond'))
+			}, responseTimeout)
+
+			const disposable = this.on('connect', (data, origin, response) => {
+				if (this.channelId)
+					throw new Error(
+						`Invalid state: Channel is already open but still listens for connect events`
+					)
+
+				clearTimeout(timeout)
+				disposable.dispose()
+
+				this.channelId = crypto.randomUUID()
+				response(this.channelId)
+				resolve()
+			})
+		})
 	}
 
-	connect() {
-		this.on('connect', (data, origin, response) => {
-			if (this.channelId) return
+	async connect() {
+		if (this.channelId) return
 
-			this.channelId = crypto.randomUUID()
-			response(this.channelId)
-		})
+		const channelId = await this.trigger<string, null>('connect', null)
+		this.channelId = channelId
 	}
 
 	trigger<ResponseData = any, TriggerData = any>(

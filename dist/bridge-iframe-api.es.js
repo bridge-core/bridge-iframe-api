@@ -11,17 +11,29 @@ class Channel {
       return this.channelId === id;
     return false;
   }
-  async open(responseTimeout = 3e3) {
-    const channelId = await this.trigger("connect", null, responseTimeout);
-    this.channelId = channelId;
-  }
-  connect() {
-    this.on("connect", (data, origin, response) => {
-      if (this.channelId)
-        return;
-      this.channelId = crypto.randomUUID();
-      response(this.channelId);
+  open(responseTimeout = 3e3) {
+    if (this.channelId)
+      return;
+    return new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        reject(new Error("Channel target did not respond"));
+      }, responseTimeout);
+      const disposable = this.on("connect", (data, origin, response) => {
+        if (this.channelId)
+          throw new Error(`Invalid state: Channel is already open but still listens for connect events`);
+        clearTimeout(timeout);
+        disposable.dispose();
+        this.channelId = crypto.randomUUID();
+        response(this.channelId);
+        resolve();
+      });
     });
+  }
+  async connect() {
+    if (this.channelId)
+      return;
+    const channelId = await this.trigger("connect", null);
+    this.channelId = channelId;
   }
   trigger(event, data, responseTimeout) {
     const triggerId = this.simpleTrigger(event, data);
