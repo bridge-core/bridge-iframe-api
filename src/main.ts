@@ -98,6 +98,7 @@ export class Channel {
 
 			this.respond(uuid, await listener(payload, origin))
 		})
+		this.port.start()
 	}
 	protected respond(uuid: string, payload: any) {
 		console.log(`Responded to ${uuid} with ${payload}`)

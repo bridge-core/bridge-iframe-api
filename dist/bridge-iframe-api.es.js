@@ -56,6 +56,7 @@ class Channel {
         return;
       this.respond(uuid, await listener(payload, origin));
     });
+    this.port.start();
   }
   respond(uuid, payload) {
     console.log(`Responded to ${uuid} with ${payload}`);
