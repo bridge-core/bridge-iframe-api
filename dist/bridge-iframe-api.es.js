@@ -16,6 +16,7 @@ class Channel {
       return;
     return new Promise((resolve, reject) => {
       const timeout = setTimeout(() => {
+        disposable.dispose();
         reject(new Error("Channel target did not respond"));
       }, responseTimeout);
       const disposable = this.on("connect", (data, origin, response) => {
@@ -23,8 +24,9 @@ class Channel {
           throw new Error(`Invalid state: Channel is already open but still listens for connect events`);
         clearTimeout(timeout);
         disposable.dispose();
-        this.channelId = crypto.randomUUID();
-        response(this.channelId);
+        const id = crypto.randomUUID();
+        response(id);
+        this.channelId = id;
         resolve();
       });
     });

@@ -36,6 +36,7 @@ export class Channel {
 
 		return new Promise<void>((resolve, reject) => {
 			const timeout = setTimeout(() => {
+				disposable.dispose()
 				reject(new Error('Channel target did not respond'))
 			}, responseTimeout)
 
@@ -48,8 +49,9 @@ export class Channel {
 				clearTimeout(timeout)
 				disposable.dispose()
 
-				this.channelId = crypto.randomUUID()
-				response(this.channelId)
+				const id = crypto.randomUUID()
+				response(id)
+				this.channelId = id
 				resolve()
 			})
 		})
