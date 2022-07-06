@@ -36,15 +36,19 @@ export class Channel {
 		this.target.postMessage('open-channel', '*', [messageChannel.port2])
 	}
 
-	async connect() {
-		const listener = (event: MessageEvent) => {
-			if (event.data === 'open-channel' && event.ports.length > 0)
+	connect() {
+		return new Promise<void>((resolve) => {
+			const listener = (event: MessageEvent) => {
+				if (event.data !== 'open-channel' || event.ports.length > 0)
+					return
+
 				this._port = event.ports[0]
+				globalThis.removeEventListener('message', listener)
+				resolve()
+			}
 
-			globalThis.removeEventListener('message', listener)
-		}
-
-		globalThis.addEventListener('message', listener)
+			globalThis.addEventListener('message', listener)
+		})
 	}
 
 	trigger<ResponseData = any, TriggerData = any>(
