@@ -10,6 +10,11 @@ interface ITriggerEventData {
 export class Channel {
 	protected target: Window
 	protected _port?: MessagePort
+	protected listeners = new Map<string, (data: any, origin: string) => any>()
+	protected awaitingResponse = new Map<
+		string,
+		(event: MessageEvent) => void
+	>()
 
 	constructor(target = window.top) {
 		if (!target)
@@ -29,25 +34,64 @@ export class Channel {
 	}
 
 	open() {
-		const messageChannel = new MessageChannel()
-		this._port = messageChannel.port1
-
-		// Post port2 to the target window
-		this.target.postMessage('open-channel', '*', [messageChannel.port2])
-	}
-
-	connect() {
 		return new Promise<void>((resolve) => {
-			const listener = (event: MessageEvent) => {
-				if (event.data !== 'open-channel' || event.ports.length === 0)
+			const listener = async (event: MessageEvent) => {
+				if (
+					event.data !== 'bridge-editor:connect' ||
+					event.ports.length === 0
+				)
 					return
 
 				this._port = event.ports[0]
+				this.startListening()
 				globalThis.removeEventListener('message', listener)
+
+				await this.trigger<void, null>('bridge-editor:connected', null)
 				resolve()
 			}
 
 			globalThis.addEventListener('message', listener)
+		})
+	}
+
+	connect() {
+		const messageChannel = new MessageChannel()
+		this._port = messageChannel.port1
+
+		this.startListening()
+
+		// Post port2 to the target window
+		this.target.postMessage('bridge-editor:connect', '*', [
+			messageChannel.port2,
+		])
+
+		return new Promise<void>((resolve) => {
+			this.on('bridge-editor:connected', () => {
+				resolve()
+			})
+		})
+	}
+
+	protected startListening() {
+		this.port.addEventListener('message', (event) => {
+			const { type, origin, uuid, payload } = <ITriggerEventData>(
+				event.data
+			)
+
+			if (type === 'response') {
+				const response = this.awaitingResponse.get(uuid)
+				if (!response)
+					throw new Error(`No response handler for ${uuid}`)
+
+				response(event)
+				this.awaitingResponse.delete(uuid)
+				return
+			}
+
+			const listener = this.listeners.get(type)
+			if (!listener) return
+
+			this.respond(uuid, listener(payload, origin))
 		})
 	}
 
@@ -60,10 +104,7 @@ export class Channel {
 
 		return new Promise<ResponseData>((resolve, reject) => {
 			const listener = (event: MessageEvent) => {
-				const { type, uuid, channelId, error, payload } = <
-					ITriggerEventData
-				>event.data
-				if (type !== 'response' || uuid !== triggerId) return
+				const { error, payload } = <ITriggerEventData>event.data
 
 				if (error) {
 					reject(error)
@@ -71,17 +112,16 @@ export class Channel {
 				}
 
 				if (timeout) clearTimeout(timeout)
-				this.port.removeEventListener('message', listener)
 				resolve(payload)
 			}
 
 			const timeout = responseTimeout
 				? setTimeout(() => {
-						this.port.removeEventListener('message', listener)
+						this.awaitingResponse.delete(triggerId)
 				  }, responseTimeout)
 				: null
 
-			this.port.addEventListener('message', listener)
+			this.awaitingResponse.set(triggerId, listener)
 		})
 	}
 
@@ -97,13 +137,9 @@ export class Channel {
 		return triggerId
 	}
 
-	on<T = any>(
+	on<Data = any, Response = void>(
 		eventName: string,
-		callback: (
-			data: T,
-			origin: string,
-			response: <T = any>(payload: T) => void
-		) => void
+		callback: (data: Data, origin: string) => Response
 	) {
 		if (eventName === 'response') {
 			throw new Error(
@@ -111,33 +147,25 @@ export class Channel {
 			)
 		}
 
-		const listener = (event: MessageEvent) => {
-			const { type, origin, uuid, payload } = <ITriggerEventData>(
-				event.data
+		if (this.listeners.has(eventName))
+			throw new Error(
+				`Event handler for event "${eventName}" already exists`
 			)
-
-			if (type !== eventName) return
-
-			callback(payload, origin, this.createResponseFunction(uuid))
-		}
-
-		this.port.addEventListener('message', listener)
+		this.listeners.set(eventName, callback)
 
 		return {
 			dispose: () => {
-				this.port.removeEventListener('message', listener)
+				this.listeners.delete(eventName)
 			},
 		}
 	}
 
-	protected createResponseFunction(uuid: string) {
-		return (payload: any) => {
-			this.port.postMessage(<ITriggerEventData>{
-				type: 'response',
-				uuid,
-				origin: window.origin,
-				payload,
-			})
-		}
+	protected respond(uuid: string, payload: any) {
+		this.port.postMessage(<ITriggerEventData>{
+			type: 'response',
+			uuid,
+			origin: window.origin,
+			payload,
+		})
 	}
 }

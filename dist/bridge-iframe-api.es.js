@@ -1,5 +1,7 @@
 class Channel {
   constructor(target = window.top) {
+    this.listeners = /* @__PURE__ */ new Map();
+    this.awaitingResponse = /* @__PURE__ */ new Map();
     if (!target)
       throw new Error("You must provide a valid target in order to create a channel");
     this.target = target;
@@ -10,42 +12,66 @@ class Channel {
     return this._port;
   }
   open() {
-    const messageChannel = new MessageChannel();
-    this._port = messageChannel.port1;
-    this.target.postMessage("open-channel", "*", [messageChannel.port2]);
-  }
-  connect() {
     return new Promise((resolve) => {
-      const listener = (event) => {
-        if (event.data !== "open-channel" || event.ports.length === 0)
+      const listener = async (event) => {
+        if (event.data !== "bridge-editor:connect" || event.ports.length === 0)
           return;
         this._port = event.ports[0];
+        this.startListening();
         globalThis.removeEventListener("message", listener);
+        await this.trigger("bridge-editor:connected", null);
         resolve();
       };
       globalThis.addEventListener("message", listener);
+    });
+  }
+  connect() {
+    const messageChannel = new MessageChannel();
+    this._port = messageChannel.port1;
+    this.startListening();
+    this.target.postMessage("bridge-editor:connect", "*", [
+      messageChannel.port2
+    ]);
+    return new Promise((resolve) => {
+      this.on("bridge-editor:connected", () => {
+        resolve();
+      });
+    });
+  }
+  startListening() {
+    this.port.addEventListener("message", (event) => {
+      const { type, origin, uuid, payload } = event.data;
+      if (type === "response") {
+        const response = this.awaitingResponse.get(uuid);
+        if (!response)
+          throw new Error(`No response handler for ${uuid}`);
+        response(event);
+        this.awaitingResponse.delete(uuid);
+        return;
+      }
+      const listener = this.listeners.get(type);
+      if (!listener)
+        return;
+      this.respond(uuid, listener(payload, origin));
     });
   }
   trigger(event, data, responseTimeout) {
     const triggerId = this.simpleTrigger(event, data);
     return new Promise((resolve, reject) => {
       const listener = (event2) => {
-        const { type, uuid, channelId, error, payload } = event2.data;
-        if (type !== "response" || uuid !== triggerId)
-          return;
+        const { error, payload } = event2.data;
         if (error) {
           reject(error);
           return;
         }
         if (timeout)
           clearTimeout(timeout);
-        this.port.removeEventListener("message", listener);
         resolve(payload);
       };
       const timeout = responseTimeout ? setTimeout(() => {
-        this.port.removeEventListener("message", listener);
+        this.awaitingResponse.delete(triggerId);
       }, responseTimeout) : null;
-      this.port.addEventListener("message", listener);
+      this.awaitingResponse.set(triggerId, listener);
     });
   }
   simpleTrigger(event, data) {
@@ -62,28 +88,22 @@ class Channel {
     if (eventName === "response") {
       throw new Error(`The response event type is reserved for internal use.`);
     }
-    const listener = (event) => {
-      const { type, origin, uuid, payload } = event.data;
-      if (type !== eventName)
-        return;
-      callback(payload, origin, this.createResponseFunction(uuid));
-    };
-    this.port.addEventListener("message", listener);
+    if (this.listeners.has(eventName))
+      throw new Error(`Event handler for event "${eventName}" already exists`);
+    this.listeners.set(eventName, callback);
     return {
       dispose: () => {
-        this.port.removeEventListener("message", listener);
+        this.listeners.delete(eventName);
       }
     };
   }
-  createResponseFunction(uuid) {
-    return (payload) => {
-      this.port.postMessage({
-        type: "response",
-        uuid,
-        origin: window.origin,
-        payload
-      });
-    };
+  respond(uuid, payload) {
+    this.port.postMessage({
+      type: "response",
+      uuid,
+      origin: window.origin,
+      payload
+    });
   }
 }
 export { Channel };
