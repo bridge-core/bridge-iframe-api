@@ -39,24 +39,24 @@ class Channel {
     });
   }
   startListening() {
-    this.port.addEventListener("message", (event) => {
+    this.port.addEventListener("message", async (event) => {
       const { type, origin, uuid, payload } = event.data;
+      console.log(event);
       if (type === "response") {
-        const response = this.awaitingResponse.get(uuid);
-        if (!response)
+        const onResponse = this.awaitingResponse.get(uuid);
+        if (!onResponse)
           throw new Error(`No response handler for ${uuid}`);
-        response(event);
+        onResponse(event);
         this.awaitingResponse.delete(uuid);
         return;
       }
       const listener = this.listeners.get(type);
       if (!listener)
         return;
-      this.respond(uuid, listener(payload, origin));
+      this.respond(uuid, await listener(payload, origin));
     });
   }
   trigger(event, data, responseTimeout) {
-    const triggerId = this.simpleTrigger(event, data);
     return new Promise((resolve, reject) => {
       const listener = (event2) => {
         const { error, payload } = event2.data;
@@ -71,11 +71,12 @@ class Channel {
       const timeout = responseTimeout ? setTimeout(() => {
         this.awaitingResponse.delete(triggerId);
       }, responseTimeout) : null;
+      const triggerId = crypto.randomUUID();
       this.awaitingResponse.set(triggerId, listener);
+      this.simpleTrigger(event, data, triggerId);
     });
   }
-  simpleTrigger(event, data) {
-    const triggerId = crypto.randomUUID();
+  simpleTrigger(event, data, triggerId = crypto.randomUUID()) {
     this.port.postMessage({
       type: event,
       uuid: triggerId,

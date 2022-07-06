@@ -10,7 +10,10 @@ interface ITriggerEventData {
 export class Channel {
 	protected target: Window
 	protected _port?: MessagePort
-	protected listeners = new Map<string, (data: any, origin: string) => any>()
+	protected listeners = new Map<
+		string,
+		(data: any, origin: string) => Promise<any> | any
+	>()
 	protected awaitingResponse = new Map<
 		string,
 		(event: MessageEvent) => void
@@ -73,17 +76,18 @@ export class Channel {
 	}
 
 	protected startListening() {
-		this.port.addEventListener('message', (event) => {
+		this.port.addEventListener('message', async (event) => {
 			const { type, origin, uuid, payload } = <ITriggerEventData>(
 				event.data
 			)
+			console.log(event)
 
 			if (type === 'response') {
-				const response = this.awaitingResponse.get(uuid)
-				if (!response)
+				const onResponse = this.awaitingResponse.get(uuid)
+				if (!onResponse)
 					throw new Error(`No response handler for ${uuid}`)
 
-				response(event)
+				onResponse(event)
 				this.awaitingResponse.delete(uuid)
 				return
 			}
@@ -91,7 +95,7 @@ export class Channel {
 			const listener = this.listeners.get(type)
 			if (!listener) return
 
-			this.respond(uuid, listener(payload, origin))
+			this.respond(uuid, await listener(payload, origin))
 		})
 	}
 
@@ -100,8 +104,6 @@ export class Channel {
 		data: TriggerData,
 		responseTimeout?: number
 	) {
-		const triggerId = this.simpleTrigger<TriggerData>(event, data)
-
 		return new Promise<ResponseData>((resolve, reject) => {
 			const listener = (event: MessageEvent) => {
 				const { error, payload } = <ITriggerEventData>event.data
@@ -121,12 +123,18 @@ export class Channel {
 				  }, responseTimeout)
 				: null
 
+			const triggerId = crypto.randomUUID()
 			this.awaitingResponse.set(triggerId, listener)
+
+			this.simpleTrigger<TriggerData>(event, data, triggerId)
 		})
 	}
 
-	simpleTrigger<T = any>(event: string, data: T) {
-		const triggerId = crypto.randomUUID()
+	simpleTrigger<T = any>(
+		event: string,
+		data: T,
+		triggerId = crypto.randomUUID()
+	) {
 		this.port.postMessage(<ITriggerEventData>{
 			type: event,
 			uuid: triggerId,
