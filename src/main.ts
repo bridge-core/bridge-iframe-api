@@ -9,7 +9,7 @@ interface ITriggerEventData {
 
 export class Channel {
 	protected target: Window
-	protected channelId?: string
+	protected _port?: MessagePort
 
 	constructor(target = window.top) {
 		if (!target)
@@ -20,48 +20,31 @@ export class Channel {
 		this.target = target
 	}
 
-	matchesChannel(id?: string) {
-		// id is undefined, so we match all channels
-		if (id === undefined) return true
-
-		// If we have a channelId, force it to match
-		if (this.channelId) return this.channelId === id
-
-		// If we don't have a channelId, but the message has one, we don't match
-		return false
+	protected get port() {
+		if (!this._port)
+			throw new Error(
+				'You must open the channel/connect to a channel before triggering events'
+			)
+		return this._port
 	}
 
-	open(responseTimeout = 3000) {
-		if (this.channelId) return
+	open() {
+		const messageChannel = new MessageChannel()
+		this._port = messageChannel.port1
 
-		return new Promise<void>((resolve, reject) => {
-			const timeout = setTimeout(() => {
-				disposable.dispose()
-				reject(new Error('Channel target did not respond'))
-			}, responseTimeout)
-
-			const disposable = this.on('connect', (data, origin, response) => {
-				if (this.channelId)
-					throw new Error(
-						`Invalid state: Channel is already open but still listens for connect events`
-					)
-
-				clearTimeout(timeout)
-				disposable.dispose()
-
-				const id = crypto.randomUUID()
-				response(id)
-				this.channelId = id
-				resolve()
-			})
-		})
+		// Post port2 to the target window
+		this.target.postMessage('open-channel', '*', [messageChannel.port2])
 	}
 
 	async connect() {
-		if (this.channelId) return
+		const listener = (event: MessageEvent) => {
+			if (event.data === 'open-channel' && event.ports.length > 0)
+				this._port = event.ports[0]
 
-		const channelId = await this.trigger<string, null>('connect', null)
-		this.channelId = channelId
+			globalThis.removeEventListener('message', listener)
+		}
+
+		globalThis.addEventListener('message', listener)
 	}
 
 	trigger<ResponseData = any, TriggerData = any>(
@@ -76,12 +59,7 @@ export class Channel {
 				const { type, uuid, channelId, error, payload } = <
 					ITriggerEventData
 				>event.data
-				if (
-					type !== 'response' ||
-					!this.matchesChannel(channelId) ||
-					uuid !== triggerId
-				)
-					return
+				if (type !== 'response' || uuid !== triggerId) return
 
 				if (error) {
 					reject(error)
@@ -89,32 +67,28 @@ export class Channel {
 				}
 
 				if (timeout) clearTimeout(timeout)
-				globalThis.removeEventListener('message', listener)
+				this.port.removeEventListener('message', listener)
 				resolve(payload)
 			}
 
 			const timeout = responseTimeout
 				? setTimeout(() => {
-						globalThis.removeEventListener('message', listener)
+						this.port.removeEventListener('message', listener)
 				  }, responseTimeout)
 				: null
 
-			globalThis.addEventListener('message', listener)
+			this.port.addEventListener('message', listener)
 		})
 	}
 
 	simpleTrigger<T = any>(event: string, data: T) {
 		const triggerId = crypto.randomUUID()
-		this.target.postMessage(
-			<ITriggerEventData>{
-				type: event,
-				channelId: this.channelId,
-				uuid: triggerId,
-				origin: window.origin,
-				payload: data,
-			},
-			'*'
-		)
+		this.port.postMessage(<ITriggerEventData>{
+			type: event,
+			uuid: triggerId,
+			origin: window.origin,
+			payload: data,
+		})
 
 		return triggerId
 	}
@@ -134,36 +108,32 @@ export class Channel {
 		}
 
 		const listener = (event: MessageEvent) => {
-			const { type, channelId, origin, uuid, payload } = <
-				ITriggerEventData
-			>event.data
+			const { type, origin, uuid, payload } = <ITriggerEventData>(
+				event.data
+			)
 
-			if (type !== eventName || !this.matchesChannel(channelId)) return
+			if (type !== eventName) return
 
 			callback(payload, origin, this.createResponseFunction(uuid))
 		}
 
-		globalThis.addEventListener('message', listener)
+		this.port.addEventListener('message', listener)
 
 		return {
 			dispose: () => {
-				globalThis.removeEventListener('message', listener)
+				this.port.removeEventListener('message', listener)
 			},
 		}
 	}
 
 	protected createResponseFunction(uuid: string) {
 		return (payload: any) => {
-			this.target.postMessage(
-				<ITriggerEventData>{
-					type: 'response',
-					channelId: this.channelId,
-					uuid,
-					origin: window.origin,
-					payload,
-				},
-				'*'
-			)
+			this.port.postMessage(<ITriggerEventData>{
+				type: 'response',
+				uuid,
+				origin: window.origin,
+				payload,
+			})
 		}
 	}
 }

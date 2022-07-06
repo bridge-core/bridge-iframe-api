@@ -4,45 +4,30 @@ class Channel {
       throw new Error("You must provide a valid target in order to create a channel");
     this.target = target;
   }
-  matchesChannel(id) {
-    if (id === void 0)
-      return true;
-    if (this.channelId)
-      return this.channelId === id;
-    return false;
+  get port() {
+    if (!this._port)
+      throw new Error("You must open the channel/connect to a channel before triggering events");
+    return this._port;
   }
-  open(responseTimeout = 3e3) {
-    if (this.channelId)
-      return;
-    return new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        disposable.dispose();
-        reject(new Error("Channel target did not respond"));
-      }, responseTimeout);
-      const disposable = this.on("connect", (data, origin, response) => {
-        if (this.channelId)
-          throw new Error(`Invalid state: Channel is already open but still listens for connect events`);
-        clearTimeout(timeout);
-        disposable.dispose();
-        const id = crypto.randomUUID();
-        response(id);
-        this.channelId = id;
-        resolve();
-      });
-    });
+  open() {
+    const messageChannel = new MessageChannel();
+    this._port = messageChannel.port1;
+    this.target.postMessage("open-channel", "*", [messageChannel.port2]);
   }
   async connect() {
-    if (this.channelId)
-      return;
-    const channelId = await this.trigger("connect", null);
-    this.channelId = channelId;
+    const listener = (event) => {
+      if (event.data === "open-channel" && event.ports.length > 0)
+        this._port = event.ports[0];
+      globalThis.removeEventListener("message", listener);
+    };
+    globalThis.addEventListener("message", listener);
   }
   trigger(event, data, responseTimeout) {
     const triggerId = this.simpleTrigger(event, data);
     return new Promise((resolve, reject) => {
       const listener = (event2) => {
         const { type, uuid, channelId, error, payload } = event2.data;
-        if (type !== "response" || !this.matchesChannel(channelId) || uuid !== triggerId)
+        if (type !== "response" || uuid !== triggerId)
           return;
         if (error) {
           reject(error);
@@ -50,24 +35,23 @@ class Channel {
         }
         if (timeout)
           clearTimeout(timeout);
-        globalThis.removeEventListener("message", listener);
+        this.port.removeEventListener("message", listener);
         resolve(payload);
       };
       const timeout = responseTimeout ? setTimeout(() => {
-        globalThis.removeEventListener("message", listener);
+        this.port.removeEventListener("message", listener);
       }, responseTimeout) : null;
-      globalThis.addEventListener("message", listener);
+      this.port.addEventListener("message", listener);
     });
   }
   simpleTrigger(event, data) {
     const triggerId = crypto.randomUUID();
-    this.target.postMessage({
+    this.port.postMessage({
       type: event,
-      channelId: this.channelId,
       uuid: triggerId,
       origin: window.origin,
       payload: data
-    }, "*");
+    });
     return triggerId;
   }
   on(eventName, callback) {
@@ -75,27 +59,26 @@ class Channel {
       throw new Error(`The response event type is reserved for internal use.`);
     }
     const listener = (event) => {
-      const { type, channelId, origin, uuid, payload } = event.data;
-      if (type !== eventName || !this.matchesChannel(channelId))
+      const { type, origin, uuid, payload } = event.data;
+      if (type !== eventName)
         return;
       callback(payload, origin, this.createResponseFunction(uuid));
     };
-    globalThis.addEventListener("message", listener);
+    this.port.addEventListener("message", listener);
     return {
       dispose: () => {
-        globalThis.removeEventListener("message", listener);
+        this.port.removeEventListener("message", listener);
       }
     };
   }
   createResponseFunction(uuid) {
     return (payload) => {
-      this.target.postMessage({
+      this.port.postMessage({
         type: "response",
-        channelId: this.channelId,
         uuid,
         origin: window.origin,
         payload
-      }, "*");
+      });
     };
   }
 }

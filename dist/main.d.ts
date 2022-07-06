@@ -1,9 +1,9 @@
 export declare class Channel {
     protected target: Window;
-    protected channelId?: string;
+    protected _port?: MessagePort;
     constructor(target?: Window | null);
-    matchesChannel(id?: string): boolean;
-    open(responseTimeout?: number): Promise<void> | undefined;
+    protected get port(): MessagePort;
+    open(): void;
     connect(): Promise<void>;
     trigger<ResponseData = any, TriggerData = any>(event: string, data: TriggerData, responseTimeout?: number): Promise<ResponseData>;
     simpleTrigger<T = any>(event: string, data: T): string;
