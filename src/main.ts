@@ -10,15 +10,7 @@ export function trigger<ResponseData = any, TriggerData = any>(
 	data: TriggerData,
 	target = window.top
 ) {
-	if (!target) throw new Error('A trigger target is required')
-
-	const triggerId = crypto.randomUUID()
-	target.postMessage(<ITriggerEventData>{
-		type: event,
-		uuid: triggerId,
-		origin: window.origin,
-		payload: data,
-	})
+	const triggerId = simpleTrigger<TriggerData>(event, data, target)
 
 	return new Promise<ResponseData>((resolve, reject) => {
 		const listener = (event: MessageEvent) => {
@@ -36,6 +28,27 @@ export function trigger<ResponseData = any, TriggerData = any>(
 
 		globalThis.addEventListener('message', listener)
 	})
+}
+
+export function simpleTrigger<T = any>(
+	event: string,
+	data: T,
+	target = window.top
+) {
+	if (!target) throw new Error('A trigger target is required')
+
+	const triggerId = crypto.randomUUID()
+	target.postMessage(
+		<ITriggerEventData>{
+			type: event,
+			uuid: triggerId,
+			origin: window.origin,
+			payload: data,
+		},
+		'*'
+	)
+
+	return triggerId
 }
 
 export function on<T = any>(
@@ -64,12 +77,15 @@ function createResponseFunction(uuid: string, target = window.top) {
 	if (!target) throw new Error('A response target is required')
 
 	return (payload: any) => {
-		target.postMessage(<ITriggerEventData>{
-			type: 'response',
-			uuid,
-			origin: window.origin,
-			payload,
-		})
+		target.postMessage(
+			<ITriggerEventData>{
+				type: 'response',
+				uuid,
+				origin: window.origin,
+				payload,
+			},
+			'*'
+		)
 	}
 }
 

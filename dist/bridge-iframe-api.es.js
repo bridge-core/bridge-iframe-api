@@ -1,13 +1,5 @@
 function trigger(event, data, target = window.top) {
-  if (!target)
-    throw new Error("A trigger target is required");
-  const triggerId = crypto.randomUUID();
-  target.postMessage({
-    type: event,
-    uuid: triggerId,
-    origin: window.origin,
-    payload: data
-  });
+  const triggerId = simpleTrigger(event, data, target);
   return new Promise((resolve, reject) => {
     const listener = (event2) => {
       const { type, uuid, error, payload } = event2.data;
@@ -22,6 +14,18 @@ function trigger(event, data, target = window.top) {
     };
     globalThis.addEventListener("message", listener);
   });
+}
+function simpleTrigger(event, data, target = window.top) {
+  if (!target)
+    throw new Error("A trigger target is required");
+  const triggerId = crypto.randomUUID();
+  target.postMessage({
+    type: event,
+    uuid: triggerId,
+    origin: window.origin,
+    payload: data
+  }, "*");
+  return triggerId;
 }
 function on(eventName, callback, receiver = window.top) {
   if (eventName === "response") {
@@ -43,10 +47,10 @@ function createResponseFunction(uuid, target = window.top) {
       uuid,
       origin: window.origin,
       payload
-    });
+    }, "*");
   };
 }
 on("openWithFile", (data, origin, response) => {
   response(data);
 });
-export { on, trigger };
+export { on, simpleTrigger, trigger };
