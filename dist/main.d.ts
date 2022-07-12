@@ -12,7 +12,7 @@ export declare class Channel {
     trigger<ResponseData = any, TriggerData = any>(event: string, data: TriggerData, responseTimeout?: number): Promise<ResponseData>;
     protected _simpleTrigger<T = any>(event: string, data: T, triggerId?: string, noResponse?: true): void;
     simpleTrigger<T = any>(event: string, data: T): void;
-    on<Data = any, Response = void>(eventName: string, callback: (data: Data, origin: string) => Response): {
+    on<Data = any, Response = void>(eventName: string, callback: (data: Data, origin: string) => Response | Promise<Response>): {
         dispose: () => void;
     };
 }

@@ -102,7 +102,7 @@ class Channel {
   }
   on(eventName, callback) {
     if (eventName === "response") {
-      throw new Error(`The response event type is reserved for internal use.`);
+      throw new Error(`The "response" event type is reserved for internal use.`);
     }
     if (this.listeners.has(eventName))
       throw new Error(`Event handler for event "${eventName}" already exists`);

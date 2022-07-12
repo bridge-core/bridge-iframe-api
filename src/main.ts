@@ -161,11 +161,11 @@ export class Channel {
 
 	on<Data = any, Response = void>(
 		eventName: string,
-		callback: (data: Data, origin: string) => Response
+		callback: (data: Data, origin: string) => Response | Promise<Response>
 	) {
 		if (eventName === 'response') {
 			throw new Error(
-				`The response event type is reserved for internal use.`
+				`The "response" event type is reserved for internal use.`
 			)
 		}
 
