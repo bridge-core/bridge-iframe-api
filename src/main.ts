@@ -96,16 +96,24 @@ export class Channel {
 			const listener = this.listeners.get(type)
 			if (!listener) return
 
-			const respPayload = await listener(payload, origin)
-			if (!noResponse) this.respond(uuid, respPayload)
+			let respPayload = null
+			let err = undefined
+			try {
+				respPayload = await listener(payload, origin)
+			} catch (err: any) {
+				err = typeof err === 'string' ? err : err.message
+			}
+
+			if (!noResponse) this.respond(uuid, respPayload, error)
 		})
 		this.port.start()
 	}
-	protected respond(uuid: string, payload: any) {
+	protected respond(uuid: string, payload: any, error?: string) {
 		this.port.postMessage(<ITriggerEventData>{
 			type: 'response',
 			uuid,
 			origin: window.origin,
+			error,
 			payload,
 		})
 	}
