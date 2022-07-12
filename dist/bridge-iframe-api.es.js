@@ -54,17 +54,23 @@ class Channel {
       const listener = this.listeners.get(type);
       if (!listener)
         return;
-      const respPayload = await listener(payload, origin);
+      let respPayload = null;
+      try {
+        respPayload = await listener(payload, origin);
+      } catch (err2) {
+        err2 = typeof err2 === "string" ? err2 : err2.message;
+      }
       if (!noResponse)
-        this.respond(uuid, respPayload);
+        this.respond(uuid, respPayload, error);
     });
     this.port.start();
   }
-  respond(uuid, payload) {
+  respond(uuid, payload, error) {
     this.port.postMessage({
       type: "response",
       uuid,
       origin: window.origin,
+      error,
       payload
     });
   }

@@ -8,7 +8,7 @@ export declare class Channel {
     open(): Promise<void>;
     connect(): Promise<void>;
     protected startListening(): void;
-    protected respond(uuid: string, payload: any): void;
+    protected respond(uuid: string, payload: any, error?: string): void;
     trigger<ResponseData = any, TriggerData = any>(event: string, data: TriggerData, responseTimeout?: number): Promise<ResponseData>;
     protected _simpleTrigger<T = any>(event: string, data: T, triggerId?: string, noResponse?: true): void;
     simpleTrigger<T = any>(event: string, data: T): void;
