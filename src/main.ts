@@ -58,9 +58,11 @@ export class Channel {
 	}
 
 	connect() {
+		// Create message channel
 		const messageChannel = new MessageChannel()
 		this._port = messageChannel.port1
 
+		// Start listening for events
 		this.startListening()
 
 		// Post port2 to the target window
@@ -69,6 +71,7 @@ export class Channel {
 		])
 
 		return new Promise<void>((resolve) => {
+			// Wait for the host context to connect to the channel
 			this.on('bridge-editor:connected', () => {
 				resolve()
 			})
@@ -100,11 +103,14 @@ export class Channel {
 			let err = undefined
 			try {
 				respPayload = await listener(payload, origin)
-			} catch (err: any) {
-				err = typeof err === 'string' ? err : err.message
+			} catch (currentErr: any) {
+				err =
+					typeof currentErr === 'string'
+						? currentErr
+						: currentErr.message
 			}
 
-			if (!noResponse) this.respond(uuid, respPayload, error)
+			if (!noResponse) this.respond(uuid, respPayload, err)
 		})
 		this.port.start()
 	}
@@ -163,6 +169,12 @@ export class Channel {
 		})
 	}
 
+	/**
+	 * Should only be used by API implementors and not consumers!
+	 *
+	 * simpleTrigger fires an event without waiting for a response which makes it great
+	 * to ensure that our API always function correctly regardless of how it is consumed
+	 */
 	simpleTrigger<T = any>(event: string, data: T) {
 		this._simpleTrigger(event, data, undefined, true)
 	}

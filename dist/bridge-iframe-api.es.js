@@ -55,13 +55,14 @@ class Channel {
       if (!listener)
         return;
       let respPayload = null;
+      let err = void 0;
       try {
         respPayload = await listener(payload, origin);
-      } catch (err2) {
-        err2 = typeof err2 === "string" ? err2 : err2.message;
+      } catch (currentErr) {
+        err = typeof currentErr === "string" ? currentErr : currentErr.message;
       }
       if (!noResponse)
-        this.respond(uuid, respPayload, error);
+        this.respond(uuid, respPayload, err);
     });
     this.port.start();
   }
