@@ -38,22 +38,28 @@ export class Channel {
 
 	open() {
 		return new Promise<void>((resolve) => {
-			const listener = async (event: MessageEvent) => {
-				if (
-					event.data !== 'bridge-editor:connect' ||
-					event.ports.length === 0
-				)
-					return
+			globalThis.addEventListener(
+				'message',
+				async (event: MessageEvent) => {
+					if (
+						event.data !== 'bridge-editor:connect' ||
+						event.ports.length === 0
+					)
+						return
 
-				this._port = event.ports[0]
-				this.startListening()
-				globalThis.removeEventListener('message', listener)
+					this._port = event.ports[0]
+					this.startListening()
 
-				await this.trigger<void, null>('bridge-editor:connected', null)
-				resolve()
-			}
+					await this.trigger<void, null>(
+						'bridge-editor:connected',
+						null
+					)
+					resolve()
+				},
+				{ once: true }
+			)
 
-			globalThis.addEventListener('message', listener)
+			this.target.postMessage('bridge-editor:connection-request', '*')
 		})
 	}
 
@@ -65,10 +71,16 @@ export class Channel {
 		// Start listening for events
 		this.startListening()
 
-		// Post port2 to the target window
-		this.target.postMessage('bridge-editor:connect', '*', [
-			messageChannel.port2,
-		])
+		this.target.addEventListener(
+			'bridge-editor:connection-request',
+			() => {
+				// Post port2 to the target window
+				this.target.postMessage('bridge-editor:connect', '*', [
+					messageChannel.port2,
+				])
+			},
+			{ once: true }
+		)
 
 		return new Promise<void>((resolve) => {
 			// Wait for the host context to connect to the channel

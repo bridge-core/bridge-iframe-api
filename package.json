@@ -1,6 +1,6 @@
 {
 	"name": "bridge-iframe-api",
-	"version": "0.4.7",
+	"version": "0.4.8",
 	"description": "A thin wrapper to make communication between bridge. and iframes easier",
 	"main": "./dist/bridge-iframe-api.umd.js",
 	"module": "./dist/bridge-iframe-api.es.js",
