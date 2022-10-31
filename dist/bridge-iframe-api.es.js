@@ -28,7 +28,7 @@ class Channel {
     const messageChannel = new MessageChannel();
     this._port = messageChannel.port1;
     this.startListening();
-    this.target.addEventListener("bridge-editor:connection-request", () => {
+    globalThis.addEventListener("bridge-editor:connection-request", () => {
       this.target.postMessage("bridge-editor:connect", "*", [
         messageChannel.port2
       ]);

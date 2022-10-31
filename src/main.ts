@@ -71,7 +71,7 @@ export class Channel {
 		// Start listening for events
 		this.startListening()
 
-		this.target.addEventListener(
+		globalThis.addEventListener(
 			'bridge-editor:connection-request',
 			() => {
 				// Post port2 to the target window
