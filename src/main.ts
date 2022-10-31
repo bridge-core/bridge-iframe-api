@@ -38,27 +38,22 @@ export class Channel {
 
 	open() {
 		return new Promise<void>((resolve) => {
-			globalThis.addEventListener(
-				'message',
-				async (event: MessageEvent) => {
-					if (
-						event.data !== 'bridge-editor:connect' ||
-						event.ports.length === 0
-					)
-						return
+			const listener = async (event: MessageEvent) => {
+				if (
+					event.data !== 'bridge-editor:connect' ||
+					event.ports.length === 0
+				)
+					return
 
-					this._port = event.ports[0]
-					this.startListening()
+				this._port = event.ports[0]
+				this.startListening()
+				globalThis.removeEventListener('message', listener)
 
-					await this.trigger<void, null>(
-						'bridge-editor:connected',
-						null
-					)
-					resolve()
-				},
-				{ once: true }
-			)
+				await this.trigger<void, null>('bridge-editor:connected', null)
+				resolve()
+			}
 
+			globalThis.addEventListener('message', listener)
 			this.target.postMessage('bridge-editor:connection-request', '*')
 		})
 	}
@@ -71,16 +66,17 @@ export class Channel {
 		// Start listening for events
 		this.startListening()
 
-		globalThis.addEventListener(
-			'bridge-editor:connection-request',
-			() => {
-				// Post port2 to the target window
-				this.target.postMessage('bridge-editor:connect', '*', [
-					messageChannel.port2,
-				])
-			},
-			{ once: true }
-		)
+		// Wait for main window to be ready
+		const listener = (event: MessageEvent) => {
+			if (event.data !== 'bridge-editor:connection-request') return
+
+			// Post port2 to the target window
+			this.target.postMessage('bridge-editor:connect', '*', [
+				messageChannel.port2,
+			])
+			globalThis.removeEventListener('message', listener)
+		}
+		globalThis.addEventListener('message', listener)
 
 		return new Promise<void>((resolve) => {
 			// Wait for the host context to connect to the channel

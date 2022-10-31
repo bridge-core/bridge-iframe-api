@@ -13,14 +13,16 @@ class Channel {
   }
   open() {
     return new Promise((resolve) => {
-      globalThis.addEventListener("message", async (event) => {
+      const listener = async (event) => {
         if (event.data !== "bridge-editor:connect" || event.ports.length === 0)
           return;
         this._port = event.ports[0];
         this.startListening();
+        globalThis.removeEventListener("message", listener);
         await this.trigger("bridge-editor:connected", null);
         resolve();
-      }, { once: true });
+      };
+      globalThis.addEventListener("message", listener);
       this.target.postMessage("bridge-editor:connection-request", "*");
     });
   }
@@ -28,11 +30,15 @@ class Channel {
     const messageChannel = new MessageChannel();
     this._port = messageChannel.port1;
     this.startListening();
-    globalThis.addEventListener("bridge-editor:connection-request", () => {
+    const listener = (event) => {
+      if (event.data !== "bridge-editor:connection-request")
+        return;
       this.target.postMessage("bridge-editor:connect", "*", [
         messageChannel.port2
       ]);
-    }, { once: true });
+      globalThis.removeEventListener("message", listener);
+    };
+    globalThis.addEventListener("message", listener);
     return new Promise((resolve) => {
       this.on("bridge-editor:connected", () => {
         resolve();
