@@ -1,5 +1,5 @@
 {
-	"name": "bridge-iframe-api",
+	"name": "@bridge-editor/iframe-api",
 	"version": "0.4.11",
 	"description": "A thin wrapper to make communication between bridge. and iframes easier",
 	"main": "./dist/bridge-iframe-api.umd.js",
@@ -14,6 +14,10 @@
 	"scripts": {
 		"build:types": "tsc --project tsconfig.json",
 		"build": "vite build && npm run build:types"
+	},
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/bridge-core/bridge-iframe-api.git"
 	},
 	"author": "solvedDev",
 	"license": "MIT",
